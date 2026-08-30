@@ -38,4 +38,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Compiled_ARCamera_Objects
-        path: App/.build/artifacts/
+        # Pulls the finished compiled dynamic app framework objects straight out of the Xcode build folder
+        path: /Users/runner/Library/Developer/Xcode/DerivedData/App-*/Build/Products/Debug-iphoneos/
