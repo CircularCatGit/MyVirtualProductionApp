@@ -19,7 +19,9 @@ jobs:
         mkdir -p App/Sources
         mv *.swift App/Sources/ 2>/dev/null || true
         
-        echo "import PackageDescription
+        # Explicitly declare the modern swift-tools-version on line 1
+        echo "// swift-tools-version: 5.10
+        import PackageDescription
         let package = Package(
             name: 'ARCameraTracking',
             platforms: [.iOS(.v15)],
