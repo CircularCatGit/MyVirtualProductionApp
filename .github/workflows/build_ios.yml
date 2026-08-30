@@ -18,6 +18,7 @@ jobs:
         mkdir -p App/Sources
         mv *.swift App/Sources/ 2>/dev/null || true
         
+        # Correctly declare the manifest product as an executable tracking target block
         echo '// swift-tools-version: 5.10
         import PackageDescription
         let package = Package(
@@ -30,6 +31,7 @@ jobs:
     - name: Compile Application Binary Executable
       run: |
         cd App
+        # Compiles the Swift executable targeting physical iPhone arm64 hardware via the official SDK
         xcodebuild -scheme ARCameraTracking -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
     - name: Assemble Completed IPA Application Package
@@ -37,9 +39,11 @@ jobs:
         rm -rf Payload/
         mkdir -p Payload/VirtualProduction.app
         
+        # Dynamically scan DerivedData to locate the arm64 application binary executable and copy it
         BINARY_PATH=$(find /Users/runner/Library/Developer/Xcode/DerivedData/ -type f -name "ARCameraTracking" ! -name "*.json" ! -name "*.LinkFileList" | head -n 1)
         cp "$BINARY_PATH" Payload/VirtualProduction.app/VirtualProduction
         
+        # Generate the mandatory metadata configuration layout properties
         echo '<?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://apple.com">
         <plist version="1.0">
