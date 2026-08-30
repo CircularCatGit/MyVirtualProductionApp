@@ -13,22 +13,36 @@ jobs:
     - name: Checkout Code Repository
       uses: actions/checkout@v4
 
-    - name: Build Standalone iOS App Bundle Container
+    - name: Initialize Native Swift Package Manifest
       run: |
-        # 1. Provision a clean iOS App directory structure layout
+        mkdir -p App/Sources
+        mv *.swift App/Sources/ 2>/dev/null || true
+        
+        # Output a pristine, double-quote escaped Swift configuration manifest structure
+        echo '// swift-tools-version: 5.10
+        import PackageDescription
+        let package = Package(
+            name: "ARCameraTracking",
+            platforms: [.iOS(.v15)],
+            products: [.library(name: "ARCameraTracking", type: .dynamic, targets: ["ARCameraTracking"])],
+            targets: [.target(name: "ARCameraTracking", path: "Sources")]
+        )' > App/Package.swift
+
+    - name: Compile Application Binary Framework
+      run: |
+        cd App
+        # Compiles the Swift code targeting physical iPhone arm64 hardware via the official SDK
+        xcodebuild -scheme ARCameraTracking -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+    - name: Assemble Completed IPA Application Package
+      run: |
+        # 1. Reconstruct a clean iOS application wrapper directory bundle structure
         mkdir -p Payload/VirtualProduction.app
         
-        # 2. Extract the active path locations for the native Apple iOS SDK
-        IOS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+        # 2. Extract the compiled machine code binary from Xcode's DerivedData target output folder
+        cp /Users/runner/Library/Developer/Xcode/DerivedData/App-*/Build/Products/Debug-iphoneos/PackageFrameworks/ARCameraTracking.framework/ARCameraTracking Payload/VirtualProduction.app/VirtualProduction
         
-        # 3. Compile the 4 raw tracking files straight into a native arm64 machine code executable binary
-        swiftc -sdk $IOS_SDK_PATH \
-               -target arm64-apple-ios15.0 \
-               -O -whole-module-optimization \
-               -o Payload/VirtualProduction.app/VirtualProduction \
-               ViewController.swift ModelImporter.swift DataRecorder.swift Scene.swift
-
-        # 4. Generate the mandatory structural metadata configuration file so iOS recognizes the application
+        # 3. Generate the mandatory metadata configuration profile mapping
         echo '<?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://apple.com">
         <plist version="1.0">
@@ -52,7 +66,7 @@ jobs:
             <key>LSRequiresIPhoneOS</key>
             <true/>
             <key>NSCameraUsageDescription</key>
-            <string>This app requires access to the camera chip layer for real-time ARKit spatial tracking telemetry logs.</string>
+            <string>This application requires direct access to the camera chip for real-time spatial video tracking logs.</string>
             <key>UILaunchStoryboardName</key>
             <string>LaunchScreen</string>
             <key>UIRequiredDeviceCapabilities</key>
@@ -67,7 +81,7 @@ jobs:
         </dict>
         </plist>' > Payload/VirtualProduction.app/Info.plist
 
-        # 5. Compress the payload layout folder structures into a clean installable package format
+        # 4. Zip the entire compiled structural system folder into an installable application bundle format
         zip -r VirtualProduction_Unrestricted.ipa Payload/
 
     - name: Export Complete App Package Archive
