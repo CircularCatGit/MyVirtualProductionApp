@@ -15,7 +15,7 @@ jobs:
 
     - name: Initialize Dummy Project Wrapper
       run: |
-        # Creates a structural command-line Swift project frame to satisfy xcodebuild
+        # Creates a structural command-line Swift project frame to satisfy the package manager
         mkdir -p App/Sources
         mv *.swift App/Sources/ 2>/dev/null || true
         
@@ -23,18 +23,18 @@ jobs:
         let package = Package(
             name: 'ARCameraTracking',
             platforms: [.iOS(.v15)],
-            products: [.executable(name: 'ARCameraTracking', targets: ['ARCameraTracking'])],
+            products: [.library(name: 'ARCameraTracking', targets: ['ARCameraTracking'])],
             targets: [.target(name: 'ARCameraTracking', path: 'Sources')]
         )" > App/Package.swift
 
     - name: Compile Application Binary
       run: |
         cd App
-        # Compiles the Swift code targeting arm64 hardware devices directly via the native iOS SDK
-        xcodebuild -buildwithpackages -scheme ARCameraTracking -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO
+        # Compiles the Swift code targeting arm64 iOS hardware devices directly using pure swift tools
+        swift build -c release --triple arm64-apple-ios15.0
 
     - name: Archive Code Objects
       uses: actions/upload-artifact@v4
       with:
         name: Compiled_ARCamera_Objects
-        path: App/.build/**/debug/ARCameraTracking
+        path: App/.build/arm64-apple-ios15.0/release/
