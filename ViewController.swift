@@ -5,9 +5,9 @@ import SceneKit
 
 class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
 
-    @IBOutlet var sceneView: ARSCNView!
-    @IBOutlet var recordButton: UIButton!
-    @IBOutlet var importButton: UIButton!
+    var sceneView: ARSCNView!
+    var recordButton: UIButton!
+    var importButton: UIButton!
 
     var isRecording = false
     var dataRecorder: DataRecorder?
@@ -16,11 +16,38 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        // 1. Programmatically initialize the ARSCNView canvas layer to fit the device bounds
+        sceneView = ARSCNView(frame: self.view.bounds)
+        sceneView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        self.view.addSubview(sceneView)
+        
+        // Configure standard AR layout view parameters
         sceneView.delegate = self
         sceneView.session.delegate = self
         sceneView.showsStatistics = true
         sceneView.autoenablesDefaultLighting = true
         
+        // 2. Programmatically construct a clean Record Toggle button
+        recordButton = UIButton(type: .system)
+        recordButton.frame = CGRect(x: 30, y: self.view.bounds.height - 100, width: 140, height: 50)
+        recordButton.setTitle("Start Recording", for: .normal)
+        recordButton.backgroundColor = UIColor.systemBlue
+        recordButton.setTitleColor(.white, for: .normal)
+        recordButton.layer.cornerRadius = 10
+        recordButton.addTarget(self, action: #selector(recordButtonTapped(_:)), for: .touchUpInside)
+        self.view.addSubview(recordButton)
+        
+        // 3. Programmatically construct a clean 3D Model Import button
+        importButton = UIButton(type: .system)
+        importButton.frame = CGRect(x: self.view.bounds.width - 170, y: self.view.bounds.height - 100, width: 140, height: 50)
+        importButton.setTitle("Import Model", for: .normal)
+        importButton.backgroundColor = UIColor.darkGray
+        importButton.setTitleColor(.white, for: .normal)
+        importButton.layer.cornerRadius = 10
+        importButton.addTarget(self, action: #selector(importButtonTapped(_:)), for: .touchUpInside)
+        self.view.addSubview(importButton)
+        
+        // Force the camera configuration tracking engine to detect environments
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = [.horizontal, .vertical]
         sceneView.session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
@@ -32,14 +59,12 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         
-        // Corrected iOS 18 layout window orientation detection
         let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
         let orientation = windowScene?.interfaceOrientation ?? .portrait
         
         if orientation == .portrait {
             sceneView.scene.rootNode.eulerAngles = SCNVector3(0, 0, 0)
         } else {
-            // Fixed Ambiguous Pi error by explicitly declaring the exact floating-point type
             sceneView.scene.rootNode.eulerAngles = SCNVector3(0, Float.pi, 0)
         }
     }
@@ -49,7 +74,9 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         sceneView.session.pause()
     }
 
-    @IBAction func recordButtonTapped(_ sender: UIButton) {
+    // MARK: - Action Methods
+
+    @objc func recordButtonTapped(_ sender: UIButton) {
         isRecording.toggle()
         if isRecording {
             recordButton.setTitle("Stop Recording", for: .normal)
@@ -72,9 +99,11 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         }
     }
 
-    @IBAction func importButtonTapped(_ sender: UIButton) {
+    @objc func importButtonTapped(_ sender: UIButton) {
         modelImporter.importModel()
     }
+
+    // MARK: - ARSession and Plane Detection Delegates
 
     func session(_ session: ARSession, didFailWithError error: Error) {
         let alertController = UIAlertController(title: "Session Failed", message: error.localizedDescription, preferredStyle: .alert)
@@ -96,7 +125,6 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     }
 
     func createPlaneNode(anchor: ARPlaneAnchor) -> SCNNode {
-        // Explicitly set geometry types to CGFloat parameters to comply with SceneKit compiler boundaries
         let planeGeometry = SCNPlane(width: CGFloat(anchor.extent.x), height: CGFloat(anchor.extent.z))
         let planeNode = SCNNode(geometry: planeGeometry)
         
