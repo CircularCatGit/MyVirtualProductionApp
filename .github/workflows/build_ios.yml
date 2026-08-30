@@ -13,25 +13,13 @@ jobs:
     - name: Checkout Code Repository
       uses: actions/checkout@v4
 
-    - name: Initialize Native Swift Package Manifest
+    - name: Initialize Fresh Project Source Tree
       run: |
-        # 1. Create a pristine, completely isolated source folder tree
+        # 1. Erase any conflicting code files or loose folder histories
+        rm -rf *
         mkdir -p App/Sources
         
-        # 2. Specifically look for and copy only the latest version of our 6 core project files
-        find . -name "main.swift" -exec cp {} App/Sources/ \; 2>/dev/null || true
-        find . -name "AppDelegate.swift" -exec cp {} App/Sources/ \; 2>/dev/null || true
-        find . -name "ViewController.swift" -exec cp {} App/Sources/ \; 2>/dev/null || true
-        find . -name "ModelImporter.swift" -exec cp {} App/Sources/ \; 2>/dev/null || true
-        find . -name "DataRecorder.swift" -exec cp {} App/Sources/ \; 2>/dev/null || true
-        find . -name "Scene.swift" -exec cp {} App/Sources/ \; 2>/dev/null || true
-        
-        # 3. CRITICAL: Completely wipe the root folder clean so no floating duplicate files remain
-        mv App /tmp/AppClean
-        rm -rf *
-        mv /tmp/AppClean App
-        
-        # 4. Output the pristine Swift Package Configuration manifest file inside our isolated tree
+        # 2. Write the pristine Package Manifest file directly
         echo '// swift-tools-version: 5.10
         import PackageDescription
         let package = Package(
@@ -41,61 +29,164 @@ jobs:
             targets: [.executableTarget(name: "ARCameraTracking", path: "Sources")]
         )' > App/Package.swift
 
-    - name: Compile Application Binary Executable
-      run: |
-        cd App
-        xcodebuild -scheme ARCameraTracking -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+        # 3. Write the pristine main.swift entry point
+        echo 'import UIKit
+        UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(AppDelegate.self))' > App/Sources/main.swift
 
-    - name: Assemble Completed IPA Application Package
-      run: |
-        rm -rf Payload/
-        mkdir -p Payload/VirtualProduction.app
-        
-        BINARY_PATH=$(find /Users/runner/Library/Developer/Xcode/DerivedData/ -type f -name "ARCameraTracking" ! -name "*.json" ! -name "*.LinkFileList" | head -n 1)
-        cp "$BINARY_PATH" Payload/VirtualProduction.app/VirtualProduction
-        
-        echo '<?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://apple.com">
-        <plist version="1.0">
-        <dict>
-            <key>CFBundleDevelopmentRegion</key>
-            <string>en</string>
-            <key>CFBundleExecutable</key>
-            <string>VirtualProduction</string>
-            <key>CFBundleIdentifier</key>
-            <string>com.custom.virtualproduction</string>
-            <key>CFBundleInfoDictionaryVersion</key>
-            <string>6.0</string>
-            <key>CFBundleName</key>
-            <string>VirtualProd</string>
-            <key>CFBundlePackageType</key>
-            <string>APPL</string>
-            <key>CFBundleShortVersionString</key>
-            <string>1.0</string>
-            <key>CFBundleVersion</key>
-            <string>1</string>
-            <key>LSRequiresIPhoneOS</key>
-            <true/>
-            <key>NSCameraUsageDescription</key>
-            <string>This application requires access to the camera chip layer for real-time spatial VR tracking data telemetry logs.</string>
-            <key>UILaunchStoryboardName</key>
-            <string>LaunchScreen</string>
-            <key>UIRequiredDeviceCapabilities</key>
-            <array>
-                <string>arm64</string>
-                <string>arkit</string>
-            </array>
-            <key>UISupportedInterfaceOrientations</key>
-            <array>
-                <string>UIInterfaceOrientationPortrait</string>
-            </array>
-        </dict>
-        </plist>' > Payload/VirtualProduction.app/Info.plist
+        # 4. Write the pristine AppDelegate.swift canvas bridge
+        echo 'import UIKit
+        class AppDelegate: UIResponder, UIApplicationDelegate {
+            var window: UIWindow?
+            func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                window = UIWindow(frame: UIScreen.main.bounds)
+                let rootVC = ViewController()
+                window?.rootViewController = rootVC
+                window?.makeKeyAndVisible()
+                return true
+            }
+        }' > App/Sources/AppDelegate.swift
 
-        zip -r VirtualProduction_Unrestricted.ipa Payload/
+        # 5. Write the pristine SceneKit helper layout
+        echo 'import SceneKit
+        class Scene {
+            func createScene() -> SCNScene { return SCNScene() }
+        }' > App/Sources/Scene.swift
 
-    - name: Export Complete App Package Archive
-      uses: actions/upload-artifact@v4
-      with:
-        name: Finished_VirtualProduction_IPA
-        path: VirtualProduction_Unrestricted.ipa
+        # 6. Write the verified DataRecorder telemetry engine
+        echo 'import Foundation
+        import ARKit
+        import SceneKit
+        extension simd_float4x4 {
+            var translation: SIMD3<Float> { return SIMD3<Float>(columns.3.x, columns.3.y, columns.3.z) }
+            var quaternion: simd_quatf { return simd_quatf(self) }
+        }
+        class DataRecorder {
+            var trackingData: [String] = []
+            var frameCount = 0
+            func startRecording() {
+                trackingData = []
+                frameCount = 0
+                trackingData.append("Frame,Timestamp,PosX,PosY,PosZ,RotX,RotY,RotZ,RotW")
+            }
+            func stopRecording() {
+                let documentsPath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
+                let filePath = "\(documentsPath)/tracking_data.csv"
+                let dataString = trackingData.joined(separator: "\n")
+                try? dataString.write(to: URL(fileURLWithPath: filePath), atomically: true, encoding: .utf8)
+            }
+            func recordFrame(_ frame: ARFrame) {
+                frameCount += 1
+                let timestamp = Date().timeIntervalSince1970
+                let transformMatrix = frame.camera.transform
+                let pos = transformMatrix.translation
+                let rot = transformMatrix.quaternion
+                let dataRow = String(format: "%d,%.4f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f",
+                                     frameCount, timestamp, pos.x, pos.y, pos.z,
+                                     rot.vector.x, rot.vector.y, rot.vector.z, rot.vector.w)
+                self.trackingData.append(dataRow)
+            }
+        }' > App/Sources/DataRecorder.swift
+
+        # 7. Write the modernized iOS 18 ModelImporter document picker
+        echo 'import UIKit
+        import SceneKit
+        import UniformTypeIdentifiers
+        public class ModelImporter: NSObject, UIDocumentPickerDelegate {
+            public var delegate: ViewController?
+            public func importModel() {
+                let documentPicker = UIDocumentPickerViewController(forOpeningContentTypes: [.item, .data, .content])
+                documentPicker.delegate = self
+                documentPicker.allowsMultipleSelection = false
+                documentPicker.modalPresentationStyle = .fullScreen
+                delegate?.present(documentPicker, animated: true, completion: nil)
+            }
+            public func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+                guard let url = urls.first else { return }
+                if url.startAccessingSecurityScopedResource() {
+                    defer { url.stopAccessingSecurityScopedResource() }
+                    do {
+                        let sceneKitScene = try SCNScene(url: url, options: nil)
+                        DispatchQueue.main.async {
+                            let importedNode = SCNNode()
+                            for child in sceneKitScene.rootNode.childNodes { importedNode.addChildNode(child) }
+                            importedNode.scale = SCNVector3(1.0, 1.0, 1.0)
+                            self.delegate?.pendingModelNode = importedNode
+                            let alert = UIAlertController(title: "Model Loaded", message: "Tap anywhere on a detected surface grid layout to anchor the 3D object down!", preferredStyle: .alert)
+                            alert.addAction(UIAlertAction(title: "Got it", style: .default))
+                            self.delegate?.present(alert, animated: true)
+                        }
+                    } catch { print("Error parsing 3D asset: \(error.localizedDescription)") }
+                }
+            }
+        }' > App/Sources/ModelImporter.swift
+
+        # 8. Write the pristine ViewController with fixed SceneKit background parameters
+        echo 'import UIKit
+        import ARKit
+        import SceneKit
+        public class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
+            public var sceneView: ARSCNView!
+            public var recordButton: UIButton!
+            public var importButton: UIButton!
+            public var isRecording = false
+            public var dataRecorder: DataRecorder?
+            public var modelImporter = ModelImporter()
+            public var pendingModelNode: SCNNode?
+            public override func viewDidLoad() {
+                super.viewDidLoad()
+                sceneView = ARSCNView(frame: self.view.bounds)
+                sceneView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+                self.view.addSubview(sceneView)
+                sceneView.delegate = self
+                sceneView.session.delegate = self
+                sceneView.showsStatistics = true
+                sceneView.autoenablesDefaultLighting = true
+                sceneView.layer.contents = nil
+                sceneView.scene.background.contents = UIColor.black 
+                let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+                sceneView.addGestureRecognizer(tapGesture)
+                recordButton = UIButton(type: .system)
+                recordButton.frame = CGRect(x: 30, y: self.view.bounds.height - 100, width: 140, height: 50)
+                recordButton.setTitle("Start Recording", for: .normal)
+                recordButton.backgroundColor = UIColor.systemBlue
+                recordButton.setTitleColor(.white, for: .normal)
+                recordButton.layer.cornerRadius = 10
+                recordButton.addTarget(self, action: #selector(recordButtonTapped(_:)), for: .touchUpInside)
+                self.view.addSubview(recordButton)
+                importButton = UIButton(type: .system)
+                importButton.frame = CGRect(x: self.view.bounds.width - 170, y: self.view.bounds.height - 100, width: 140, height: 50)
+                importButton.setTitle("Import Model", for: .normal)
+                importButton.backgroundColor = UIColor.darkGray
+                importButton.setTitleColor(.white, for: .normal)
+                importButton.layer.cornerRadius = 10
+                importButton.addTarget(self, action: #selector(importButtonTapped(_:)), for: .touchUpInside)
+                self.view.addSubview(importButton)
+                let configuration = ARWorldTrackingConfiguration()
+                configuration.planeDetection = [.horizontal]
+                sceneView.session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
+                dataRecorder = DataRecorder()
+                modelImporter.delegate = self
+            }
+            public override func viewWillAppear(_ animated: Bool) {
+                super.viewWillAppear(animated)
+                sceneView.scene.rootNode.eulerAngles = SCNVector3(0, 0, 0)
+            }
+            public override func viewWillDisappear(_ animated: Bool) {
+                super.viewWillDisappear(animated)
+                sceneView.session.pause()
+            }
+            @objc func handleTap(_ gestureRecognize: UIGestureRecognizer) {
+                guard let modelNode = pendingModelNode else { return }
+                let tapLocation = gestureRecognize.location(in: sceneView)
+                let query = sceneView.raycastQuery(from: tapLocation, allowing: .estimatedPlane, alignment: .horizontal)
+                if let raycastQuery = query {
+                    let results = sceneView.session.raycast(raycastQuery)
+                    if let hitResult = results.first {
+                        modelNode.removeFromParentNode()
+                        let transform = hitResult.worldTransform
+                        modelNode.position = SCNVector3(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
+                        modelNode.eulerAngles = SCNVector3(0, 0, 0)
+                        sceneView.scene.rootNode.addChildNode(modelNode)
+                        pendingModelNode = nil
+                    }
+                }
