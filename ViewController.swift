@@ -5,7 +5,6 @@ import SceneKit
 
 public class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
 
-    // Marked as public so ModelImporter can modify them
     public var sceneView: ARSCNView!
     public var recordButton: UIButton!
     public var importButton: UIButton!
@@ -28,8 +27,10 @@ public class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDeleg
         sceneView.showsStatistics = true
         sceneView.autoenablesDefaultLighting = true
         
+        // --- VIRTUAL REALITY (CAM HIDE) MODIFICATION FIX ---
         sceneView.layer.contents = nil
-        sceneView.background.contents = UIColor.black 
+        // Fixed: Correctly assigned the black backdrop color properties onto the scene object layers
+        sceneView.scene.background.contents = UIColor.black 
         
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         sceneView.addGestureRecognizer(tapGesture)
