@@ -23,11 +23,28 @@ class ModelImporter: NSObject, UIDocumentPickerDelegate {
             
             do {
                 let sceneKitScene = try SCNScene(url: url, options: nil)
+                
                 DispatchQueue.main.async {
-                    self.delegate?.sceneView.scene.rootNode.addChildNode(sceneKitScene.rootNode)
+                    let importedNode = SCNNode()
+                    
+                    // Pull all inner child elements together into one root node block container
+                    for child in sceneKitScene.rootNode.childNodes {
+                        importedNode.addChildNode(child)
+                    }
+                    
+                    // Normalize model scaling (Some models compile incredibly massive or tiny out of Blender)
+                    importedNode.scale = SCNVector3(1.0, 1.0, 1.0)
+                    
+                    // Save into standby memory tracking slot
+                    self.delegate?.pendingModelNode = importedNode
+                    
+                    // Instruct the user with an on-screen alert banner
+                    let alert = UIAlertController(title: "Model Loaded", message: "Tap anywhere on a detected green surface mesh grid to anchor the 3D object down!", preferredStyle: .alert)
+                    alert.addAction(UIAlertAction(title: "Got it", style: .default))
+                    self.delegate?.present(alert, animated: true)
                 }
             } catch {
-                print("Error parsing 3D model container asset layout: \(error.localizedDescription)")
+                print("Error parsing 3D model asset layout: \(error.localizedDescription)")
             }
         }
     }
