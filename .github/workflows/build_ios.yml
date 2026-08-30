@@ -15,26 +15,33 @@ jobs:
 
     - name: Initialize Fresh Project Source Tree
       run: |
-        # 1. Erase any conflicting code files or loose folder histories
         rm -rf *
         mkdir -p App/Sources
-        
-        # 2. Write the pristine Package Manifest file directly
-        echo '// swift-tools-version: 5.10
+
+    - name: Create Package Manifest
+      run: |
+        cat << 'EOF' > App/Package.swift
+        // swift-tools-version: 5.10
         import PackageDescription
         let package = Package(
             name: "ARCameraTracking",
             platforms: [.iOS(.v15)],
             products: [.executable(name: "ARCameraTracking", targets: ["ARCameraTracking"])],
             targets: [.executableTarget(name: "ARCameraTracking", path: "Sources")]
-        )' > App/Package.swift
+        )
+        EOF
 
-        # 3. Write the pristine main.swift entry point
-        echo 'import UIKit
-        UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(AppDelegate.self))' > App/Sources/main.swift
+    - name: Create main.swift
+      run: |
+        cat << 'EOF' > App/Sources/main.swift
+        import UIKit
+        UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(AppDelegate.self))
+        EOF
 
-        # 4. Write the pristine AppDelegate.swift canvas bridge
-        echo 'import UIKit
+    - name: Create AppDelegate.swift
+      run: |
+        cat << 'EOF' > App/Sources/AppDelegate.swift
+        import UIKit
         class AppDelegate: UIResponder, UIApplicationDelegate {
             var window: UIWindow?
             func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
@@ -44,16 +51,22 @@ jobs:
                 window?.makeKeyAndVisible()
                 return true
             }
-        }' > App/Sources/AppDelegate.swift
+        }
+        EOF
 
-        # 5. Write the pristine SceneKit helper layout
-        echo 'import SceneKit
+    - name: Create Scene.swift
+      run: |
+        cat << 'EOF' > App/Sources/Scene.swift
+        import SceneKit
         class Scene {
             func createScene() -> SCNScene { return SCNScene() }
-        }' > App/Sources/Scene.swift
+        }
+        EOF
 
-        # 6. Write the verified DataRecorder telemetry engine
-        echo 'import Foundation
+    - name: Create DataRecorder.swift
+      run: |
+        cat << 'EOF' > App/Sources/DataRecorder.swift
+        import Foundation
         import ARKit
         import SceneKit
         extension simd_float4x4 {
@@ -85,10 +98,13 @@ jobs:
                                      rot.vector.x, rot.vector.y, rot.vector.z, rot.vector.w)
                 self.trackingData.append(dataRow)
             }
-        }' > App/Sources/DataRecorder.swift
+        }
+        EOF
 
-        # 7. Write the modernized iOS 18 ModelImporter document picker
-        echo 'import UIKit
+    - name: Create ModelImporter.swift
+      run: |
+        cat << 'EOF' > App/Sources/ModelImporter.swift
+        import UIKit
         import SceneKit
         import UniformTypeIdentifiers
         public class ModelImporter: NSObject, UIDocumentPickerDelegate {
@@ -118,10 +134,13 @@ jobs:
                     } catch { print("Error parsing 3D asset: \(error.localizedDescription)") }
                 }
             }
-        }' > App/Sources/ModelImporter.swift
+        }
+        EOF
 
-        # 8. Write the pristine ViewController with fixed SceneKit background parameters
-        echo 'import UIKit
+    - name: Create ViewController.swift
+      run: |
+        cat << 'EOF' > App/Sources/ViewController.swift
+        import UIKit
         import ARKit
         import SceneKit
         public class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
@@ -189,4 +208,3 @@ jobs:
                         sceneView.scene.rootNode.addChildNode(modelNode)
                         pendingModelNode = nil
                     }
-                }
