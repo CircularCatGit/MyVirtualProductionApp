@@ -13,12 +13,12 @@ jobs:
     - name: Checkout Code Repository
       uses: actions/checkout@v4
 
-    - name: Generate Native Xcode Project Template
+    - name: Initialize Native Swift Package Manifest
       run: |
         mkdir -p App/Sources
         mv *.swift App/Sources/ 2>/dev/null || true
         
-        # 1. Output a pristine, double-quote escaped Swift configuration manifest
+        # Output a pristine, double-quote escaped Swift configuration manifest
         echo '// swift-tools-version: 5.10
         import PackageDescription
         let package = Package(
@@ -28,18 +28,14 @@ jobs:
             targets: [.target(name: "ARCameraTracking", path: "Sources")]
         )' > App/Package.swift
 
-        # 2. Automatically convert the project layout into a native Xcode Schema container
-        cd App
-        swift package generate-xcodeproj --output ARCameraTracking.xcodeproj
-
     - name: Compile Application Binary Framework
       run: |
         cd App
-        # 3. Compile the code using Apple's official cross-compiler targeting physical iPhone arm64 hardware
-        xcodebuild -project ARCameraTracking.xcodeproj -scheme ARCameraTracking-Package -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+        # Native Xcode 15+ can read Package.swift directly using auto-generated schemes!
+        xcodebuild -scheme ARCameraTracking -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
     - name: Archive Code Objects
       uses: actions/upload-artifact@v4
       with:
         name: Compiled_ARCamera_Objects
-        path: App/build/Release-iphoneos/
+        path: App/.build/artifacts/
