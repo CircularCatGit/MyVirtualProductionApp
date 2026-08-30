@@ -13,7 +13,6 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     var dataRecorder: DataRecorder?
     var modelImporter = ModelImporter()
     
-    // Tracks the 3D model currently waiting to be anchored down
     var pendingModelNode: SCNNode?
 
     override func viewDidLoad() {
@@ -28,7 +27,11 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         sceneView.showsStatistics = true
         sceneView.autoenablesDefaultLighting = true
         
-        // Add a Tap Gesture to handle anchoring models onto detected surfaces
+        // --- VIRTUAL REALITY (CAM HIDE) MODIFICATION ---
+        // Completely disconnects the live camera video layer from rendering onto the screen
+        sceneView.layer.contents = nil
+        sceneView.background.contents = UIColor.black // Turns the background into a clean virtual studio canvas
+        
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         sceneView.addGestureRecognizer(tapGesture)
         
@@ -51,7 +54,8 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         self.view.addSubview(importButton)
         
         let configuration = ARWorldTrackingConfiguration()
-        configuration.planeDetection = [.horizontal, .vertical]
+        // We track planes in background memory so you can still anchor things down easily
+        configuration.planeDetection = [.horizontal]
         sceneView.session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
         
         dataRecorder = DataRecorder()
@@ -74,26 +78,23 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         guard let modelNode = pendingModelNode else { return }
         let tapLocation = gestureRecognize.location(in: sceneView)
         
-        // Raycast out from your finger tap to find a real surface grid point
-        let query = sceneView.raycastQuery(from: tapLocation, allowing: .estimatedPlane, alignment: .any)
+        let query = sceneView.raycastQuery(from: tapLocation, allowing: .estimatedPlane, alignment: .horizontal)
         if let raycastQuery = query {
             let results = sceneView.session.raycast(raycastQuery)
             if let hitResult = results.first {
                 
-                // Remove from moving camera node matrix, attach to absolute static tracking anchor matrix
                 modelNode.removeFromParentNode()
                 
                 let transform = hitResult.worldTransform
                 modelNode.position = SCNVector3(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
                 
-                // Clear any orientation offsets so it sits straight up on the surface floor loop
+                // --- SIDEWAYS ORIENTATION FIX ---
+                // Clears all rotated axes so the model forces its internal mesh matrix to stand straight up
                 modelNode.eulerAngles = SCNVector3(0, 0, 0)
                 
                 sceneView.scene.rootNode.addChildNode(modelNode)
-                
-                // Clear the holder slot so you don't accidentally duplicate place it
                 pendingModelNode = nil
-                print("[ARKit] Model successfully anchored to real-world coordinates!")
+                print("[ARKit] Model successfully locked straight-up in virtual space!")
             }
         }
     }
@@ -127,7 +128,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         modelImporter.importModel()
     }
 
-    // MARK: - ARSession and Debug Render Delegates
+    // MARK: - ARSession and Render Delegates
 
     func session(_ session: ARSession, didFailWithError error: Error) {
         print("Session Failed: \(error.localizedDescription)")
@@ -143,7 +144,9 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         if anchor is ARPlaneAnchor {
             let planeGeometry = SCNPlane(width: CGFloat((anchor as! ARPlaneAnchor).extent.x), height: CGFloat((anchor as! ARPlaneAnchor).extent.z))
             let planeNode = SCNNode(geometry: planeGeometry)
-            planeNode.geometry?.firstMaterial?.diffuse.contents = UIColor.systemGreen.withAlphaComponent(0.2)
+            
+            // Render a semi-transparent guideline grid so you know where you can click in the dark
+            planeNode.geometry?.firstMaterial?.diffuse.contents = UIColor.systemGreen.withAlphaComponent(0.15)
             planeNode.geometry?.firstMaterial?.isDoubleSided = true
             planeNode.eulerAngles.x = Float(-Double.pi / 2.0)
             planeNode.position = SCNVector3((anchor as! ARPlaneAnchor).center.x, (anchor as! ARPlaneAnchor).center.y, (anchor as! ARPlaneAnchor).center.z)
