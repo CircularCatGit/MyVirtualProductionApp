@@ -12,22 +12,26 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     var isRecording = false
     var dataRecorder: DataRecorder?
     var modelImporter = ModelImporter()
+    
+    // Tracks the 3D model currently waiting to be anchored down
+    var pendingModelNode: SCNNode?
 
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        // 1. Programmatically initialize the ARSCNView canvas layer to fit the device bounds
         sceneView = ARSCNView(frame: self.view.bounds)
         sceneView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         self.view.addSubview(sceneView)
         
-        // Configure standard AR layout view parameters
         sceneView.delegate = self
         sceneView.session.delegate = self
         sceneView.showsStatistics = true
         sceneView.autoenablesDefaultLighting = true
         
-        // 2. Programmatically construct a clean Record Toggle button
+        // Add a Tap Gesture to handle anchoring models onto detected surfaces
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+        sceneView.addGestureRecognizer(tapGesture)
+        
         recordButton = UIButton(type: .system)
         recordButton.frame = CGRect(x: 30, y: self.view.bounds.height - 100, width: 140, height: 50)
         recordButton.setTitle("Start Recording", for: .normal)
@@ -37,7 +41,6 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         recordButton.addTarget(self, action: #selector(recordButtonTapped(_:)), for: .touchUpInside)
         self.view.addSubview(recordButton)
         
-        // 3. Programmatically construct a clean 3D Model Import button
         importButton = UIButton(type: .system)
         importButton.frame = CGRect(x: self.view.bounds.width - 170, y: self.view.bounds.height - 100, width: 140, height: 50)
         importButton.setTitle("Import Model", for: .normal)
@@ -47,7 +50,6 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         importButton.addTarget(self, action: #selector(importButtonTapped(_:)), for: .touchUpInside)
         self.view.addSubview(importButton)
         
-        // Force the camera configuration tracking engine to detect environments
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = [.horizontal, .vertical]
         sceneView.session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
@@ -58,15 +60,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        
-        let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
-        let orientation = windowScene?.interfaceOrientation ?? .portrait
-        
-        if orientation == .portrait {
-            sceneView.scene.rootNode.eulerAngles = SCNVector3(0, 0, 0)
-        } else {
-            sceneView.scene.rootNode.eulerAngles = SCNVector3(0, Float.pi, 0)
-        }
+        sceneView.scene.rootNode.eulerAngles = SCNVector3(0, 0, 0)
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -74,7 +68,37 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         sceneView.session.pause()
     }
 
-    // MARK: - Action Methods
+    // MARK: - Tap to Place Mechanics
+
+    @objc func handleTap(_ gestureRecognize: UIGestureRecognizer) {
+        guard let modelNode = pendingModelNode else { return }
+        let tapLocation = gestureRecognize.location(in: sceneView)
+        
+        // Raycast out from your finger tap to find a real surface grid point
+        let query = sceneView.raycastQuery(from: tapLocation, allowing: .estimatedPlane, alignment: .any)
+        if let raycastQuery = query {
+            let results = sceneView.session.raycast(raycastQuery)
+            if let hitResult = results.first {
+                
+                // Remove from moving camera node matrix, attach to absolute static tracking anchor matrix
+                modelNode.removeFromParentNode()
+                
+                let transform = hitResult.worldTransform
+                modelNode.position = SCNVector3(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
+                
+                // Clear any orientation offsets so it sits straight up on the surface floor loop
+                modelNode.eulerAngles = SCNVector3(0, 0, 0)
+                
+                sceneView.scene.rootNode.addChildNode(modelNode)
+                
+                // Clear the holder slot so you don't accidentally duplicate place it
+                pendingModelNode = nil
+                print("[ARKit] Model successfully anchored to real-world coordinates!")
+            }
+        }
+    }
+
+    // MARK: - Button Actions
 
     @objc func recordButtonTapped(_ sender: UIButton) {
         isRecording.toggle()
@@ -103,12 +127,10 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
         modelImporter.importModel()
     }
 
-    // MARK: - ARSession and Plane Detection Delegates
+    // MARK: - ARSession and Debug Render Delegates
 
     func session(_ session: ARSession, didFailWithError error: Error) {
-        let alertController = UIAlertController(title: "Session Failed", message: error.localizedDescription, preferredStyle: .alert)
-        alertController.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
-        present(alertController, animated: true, completion: nil)
+        print("Session Failed: \(error.localizedDescription)")
     }
 
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
@@ -119,19 +141,13 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
 
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
         if anchor is ARPlaneAnchor {
-            let planeNode = createPlaneNode(anchor: anchor as! ARPlaneAnchor)
+            let planeGeometry = SCNPlane(width: CGFloat((anchor as! ARPlaneAnchor).extent.x), height: CGFloat((anchor as! ARPlaneAnchor).extent.z))
+            let planeNode = SCNNode(geometry: planeGeometry)
+            planeNode.geometry?.firstMaterial?.diffuse.contents = UIColor.systemGreen.withAlphaComponent(0.2)
+            planeNode.geometry?.firstMaterial?.isDoubleSided = true
+            planeNode.eulerAngles.x = Float(-Double.pi / 2.0)
+            planeNode.position = SCNVector3((anchor as! ARPlaneAnchor).center.x, (anchor as! ARPlaneAnchor).center.y, (anchor as! ARPlaneAnchor).center.z)
             node.addChildNode(planeNode)
         }
-    }
-
-    func createPlaneNode(anchor: ARPlaneAnchor) -> SCNNode {
-        let planeGeometry = SCNPlane(width: CGFloat(anchor.extent.x), height: CGFloat(anchor.extent.z))
-        let planeNode = SCNNode(geometry: planeGeometry)
-        
-        planeNode.geometry?.firstMaterial?.diffuse.contents = UIColor.systemGreen.withAlphaComponent(0.4)
-        planeNode.geometry?.firstMaterial?.isDoubleSided = true
-        planeNode.eulerAngles.x = Float(-Double.pi / 2.0)
-        planeNode.position = SCNVector3(anchor.center.x, anchor.center.y, anchor.center.z)
-        return planeNode
     }
 }
