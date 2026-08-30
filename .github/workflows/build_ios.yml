@@ -13,30 +13,65 @@ jobs:
     - name: Checkout Code Repository
       uses: actions/checkout@v4
 
-    - name: Initialize Native Swift Package Manifest
+    - name: Build Standalone iOS App Bundle Container
       run: |
-        mkdir -p App/Sources
-        mv *.swift App/Sources/ 2>/dev/null || true
+        # 1. Provision a clean iOS App directory structure layout
+        mkdir -p Payload/VirtualProduction.app
         
-        # Output a pristine, double-quote escaped Swift configuration manifest
-        echo '// swift-tools-version: 5.10
-        import PackageDescription
-        let package = Package(
-            name: "ARCameraTracking",
-            platforms: [.iOS(.v15)],
-            products: [.library(name: "ARCameraTracking", type: .dynamic, targets: ["ARCameraTracking"])],
-            targets: [.target(name: "ARCameraTracking", path: "Sources")]
-        )' > App/Package.swift
+        # 2. Extract the active path locations for the native Apple iOS SDK
+        IOS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+        
+        # 3. Compile the 4 raw tracking files straight into a native arm64 machine code executable binary
+        swiftc -sdk $IOS_SDK_PATH \
+               -target arm64-apple-ios15.0 \
+               -O -whole-module-optimization \
+               -o Payload/VirtualProduction.app/VirtualProduction \
+               ViewController.swift ModelImporter.swift DataRecorder.swift Scene.swift
 
-    - name: Compile Application Binary Framework
-      run: |
-        cd App
-        # Native Xcode 15+ can read Package.swift directly using auto-generated schemes!
-        xcodebuild -scheme ARCameraTracking -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+        # 4. Generate the mandatory structural metadata configuration file so iOS recognizes the application
+        echo '<?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://apple.com">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleDevelopmentRegion</key>
+            <string>en</string>
+            <key>CFBundleExecutable</key>
+            <string>VirtualProduction</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.custom.virtualproduction</string>
+            <key>CFBundleInfoDictionaryVersion</key>
+            <string>6.0</string>
+            <key>CFBundleName</key>
+            <string>VirtualProd</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0</string>
+            <key>CFBundleVersion</key>
+            <string>1</string>
+            <key>LSRequiresIPhoneOS</key>
+            <true/>
+            <key>NSCameraUsageDescription</key>
+            <string>This app requires access to the camera chip layer for real-time ARKit spatial tracking telemetry logs.</string>
+            <key>UILaunchStoryboardName</key>
+            <string>LaunchScreen</string>
+            <key>UIRequiredDeviceCapabilities</key>
+            <array>
+                <string>arm64</string>
+                <string>arkit</string>
+            </array>
+            <key>UISupportedInterfaceOrientations</key>
+            <array>
+                <string>UIInterfaceOrientationPortrait</string>
+            </array>
+        </dict>
+        </plist>' > Payload/VirtualProduction.app/Info.plist
 
-    - name: Archive Code Objects
+        # 5. Compress the payload layout folder structures into a clean installable package format
+        zip -r VirtualProduction_Unrestricted.ipa Payload/
+
+    - name: Export Complete App Package Archive
       uses: actions/upload-artifact@v4
       with:
-        name: Compiled_ARCamera_Objects
-        # Pulls the finished compiled dynamic app framework objects straight out of the Xcode build folder
-        path: /Users/runner/Library/Developer/Xcode/DerivedData/App-*/Build/Products/Debug-iphoneos/
+        name: Finished_VirtualProduction_IPA
+        path: VirtualProduction_Unrestricted.ipa
