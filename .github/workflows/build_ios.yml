@@ -15,10 +15,21 @@ jobs:
 
     - name: Initialize Native Swift Package Manifest
       run: |
+        # 1. Clear out any accidental duplicated folder structures to prevent duplicate class conflicts
         mkdir -p App/Sources
-        mv *.swift App/Sources/ 2>/dev/null || true
         
-        # Correctly declare the manifest product as an executable tracking target block
+        # 2. Safely find and move exactly one unique copy of each file into the compilation root
+        find . -maxdepth 3 -name "main.swift" -exec mv {} App/Sources/ \; 2>/dev/null || true
+        find . -maxdepth 3 -name "AppDelegate.swift" -exec mv {} App/Sources/ \; 2>/dev/null || true
+        find . -maxdepth 3 -name "ViewController.swift" -exec mv {} App/Sources/ \; 2>/dev/null || true
+        find . -maxdepth 3 -name "ModelImporter.swift" -exec mv {} App/Sources/ \; 2>/dev/null || true
+        find . -maxdepth 3 -name "DataRecorder.swift" -exec mv {} App/Sources/ \; 2>/dev/null || true
+        find . -maxdepth 3 -name "Scene.swift" -exec mv {} App/Sources/ \; 2>/dev/null || true
+        
+        # 3. Purge any remaining loose redundant folder trees out of memory
+        rm -rf ARCameraTrackingAndVirtualProduction/ 2>/dev/null || true
+        
+        # 4. Output the pristine Swift Package Configuration file
         echo '// swift-tools-version: 5.10
         import PackageDescription
         let package = Package(
@@ -31,7 +42,6 @@ jobs:
     - name: Compile Application Binary Executable
       run: |
         cd App
-        # Compiles the Swift executable targeting physical iPhone arm64 hardware via the official SDK
         xcodebuild -scheme ARCameraTracking -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
     - name: Assemble Completed IPA Application Package
@@ -39,11 +49,9 @@ jobs:
         rm -rf Payload/
         mkdir -p Payload/VirtualProduction.app
         
-        # Dynamically scan DerivedData to locate the arm64 application binary executable and copy it
         BINARY_PATH=$(find /Users/runner/Library/Developer/Xcode/DerivedData/ -type f -name "ARCameraTracking" ! -name "*.json" ! -name "*.LinkFileList" | head -n 1)
         cp "$BINARY_PATH" Payload/VirtualProduction.app/VirtualProduction
         
-        # Generate the mandatory metadata configuration layout properties
         echo '<?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://apple.com">
         <plist version="1.0">
