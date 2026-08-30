@@ -19,15 +19,15 @@ jobs:
         mkdir -p App/Sources
         mv *.swift App/Sources/ 2>/dev/null || true
         
-        # Explicitly declare the modern swift-tools-version on line 1
-        echo "// swift-tools-version: 5.10
+        # Explicitly declare the modern swift-tools-version with escaped double quotes
+        echo '// swift-tools-version: 5.10
         import PackageDescription
         let package = Package(
-            name: 'ARCameraTracking',
+            name: "ARCameraTracking",
             platforms: [.iOS(.v15)],
-            products: [.library(name: 'ARCameraTracking', targets: ['ARCameraTracking'])],
-            targets: [.target(name: 'ARCameraTracking', path: 'Sources')]
-        )" > App/Package.swift
+            products: [.library(name: "ARCameraTracking", targets: ["ARCameraTracking"])],
+            targets: [.target(name: "ARCameraTracking", path: "Sources")]
+        )' > App/Package.swift
 
     - name: Compile Application Binary
       run: |
