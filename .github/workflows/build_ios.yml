@@ -3,40 +3,43 @@ name: Compile Unrestricted iOS App
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # Allows you to trigger the compilation manually
+  workflow_dispatch: 
 
 jobs:
   build:
-    runs-on: macos-14 # Provisions an authentic Apple runtime environment channel
+    runs-on: macos-14 
     
     steps:
     - name: Checkout Code Repository
       uses: actions/checkout@v4
 
-    - name: Initialize Dummy Project Wrapper
+    - name: Generate Native Xcode Project Template
       run: |
-        # Creates a structural command-line Swift project frame to satisfy the package manager
         mkdir -p App/Sources
         mv *.swift App/Sources/ 2>/dev/null || true
         
-        # Explicitly declare the modern swift-tools-version with escaped double quotes
+        # 1. Output a pristine, double-quote escaped Swift configuration manifest
         echo '// swift-tools-version: 5.10
         import PackageDescription
         let package = Package(
             name: "ARCameraTracking",
             platforms: [.iOS(.v15)],
-            products: [.library(name: "ARCameraTracking", targets: ["ARCameraTracking"])],
+            products: [.library(name: "ARCameraTracking", type: .dynamic, targets: ["ARCameraTracking"])],
             targets: [.target(name: "ARCameraTracking", path: "Sources")]
         )' > App/Package.swift
 
-    - name: Compile Application Binary
+        # 2. Automatically convert the project layout into a native Xcode Schema container
+        cd App
+        swift package generate-xcodeproj --output ARCameraTracking.xcodeproj
+
+    - name: Compile Application Binary Framework
       run: |
         cd App
-        # Compiles the Swift code targeting arm64 iOS hardware devices directly using pure swift tools
-        swift build -c release --triple arm64-apple-ios15.0
+        # 3. Compile the code using Apple's official cross-compiler targeting physical iPhone arm64 hardware
+        xcodebuild -project ARCameraTracking.xcodeproj -scheme ARCameraTracking-Package -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
     - name: Archive Code Objects
       uses: actions/upload-artifact@v4
       with:
         name: Compiled_ARCamera_Objects
-        path: App/.build/arm64-apple-ios15.0/release/
+        path: App/build/Release-iphoneos/
