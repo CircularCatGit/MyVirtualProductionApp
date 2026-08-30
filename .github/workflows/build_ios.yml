@@ -18,20 +18,20 @@ jobs:
         mkdir -p App/Sources
         mv *.swift App/Sources/ 2>/dev/null || true
         
-        # Output a pristine, double-quote escaped Swift configuration manifest structure
+        # Correctly declare the product as an executable and the target as an executableTarget
         echo '// swift-tools-version: 5.10
         import PackageDescription
         let package = Package(
             name: "ARCameraTracking",
             platforms: [.iOS(.v15)],
-            products: [.library(name: "ARCameraTracking", type: .dynamic, targets: ["ARCameraTracking"])],
-            targets: [.target(name: "ARCameraTracking", path: "Sources")]
+            products: [.executable(name: "ARCameraTracking", targets: ["ARCameraTracking"])],
+            targets: [.executableTarget(name: "ARCameraTracking", path: "Sources")]
         )' > App/Package.swift
 
-    - name: Compile Application Binary Framework
+    - name: Compile Application Binary Executable
       run: |
         cd App
-        # Compiles the Swift code targeting physical iPhone arm64 hardware via the official SDK
+        # Compiles the Swift executable targeting physical iPhone arm64 hardware via the official SDK
         xcodebuild -scheme ARCameraTracking -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
     - name: Assemble Completed IPA Application Package
@@ -40,7 +40,7 @@ jobs:
         mkdir -p Payload/VirtualProduction.app
         
         # 2. Extract the compiled machine code binary from Xcode's DerivedData target output folder
-        cp /Users/runner/Library/Developer/Xcode/DerivedData/App-*/Build/Products/Debug-iphoneos/PackageFrameworks/ARCameraTracking.framework/ARCameraTracking Payload/VirtualProduction.app/VirtualProduction
+        cp /Users/runner/Library/Developer/Xcode/DerivedData/App-*/Build/Products/Debug-iphoneos/ARCameraTracking Payload/VirtualProduction.app/VirtualProduction
         
         # 3. Generate the mandatory metadata configuration profile mapping
         echo '<?xml version="1.0" encoding="UTF-8"?>
