@@ -31,10 +31,16 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        if (sceneView.session.currentFrame?.camera.imageOrientation == .rightUp) {
+        
+        // Corrected iOS 18 layout window orientation detection
+        let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
+        let orientation = windowScene?.interfaceOrientation ?? .portrait
+        
+        if orientation == .portrait {
             sceneView.scene.rootNode.eulerAngles = SCNVector3(0, 0, 0)
         } else {
-            sceneView.scene.rootNode.eulerAngles = SCNVector3(0, .pi, 0)
+            // Fixed Ambiguous Pi error by explicitly declaring the exact floating-point type
+            sceneView.scene.rootNode.eulerAngles = SCNVector3(0, Float.pi, 0)
         }
     }
 
@@ -90,12 +96,13 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate {
     }
 
     func createPlaneNode(anchor: ARPlaneAnchor) -> SCNNode {
+        // Explicitly set geometry types to CGFloat parameters to comply with SceneKit compiler boundaries
         let planeGeometry = SCNPlane(width: CGFloat(anchor.extent.x), height: CGFloat(anchor.extent.z))
         let planeNode = SCNNode(geometry: planeGeometry)
         
         planeNode.geometry?.firstMaterial?.diffuse.contents = UIColor.systemGreen.withAlphaComponent(0.4)
         planeNode.geometry?.firstMaterial?.isDoubleSided = true
-        planeNode.eulerAngles.x = -.pi / 2
+        planeNode.eulerAngles.x = Float(-Double.pi / 2.0)
         planeNode.position = SCNVector3(anchor.center.x, anchor.center.y, anchor.center.z)
         return planeNode
     }
