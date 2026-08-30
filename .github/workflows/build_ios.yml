@@ -1,14 +1,45 @@
+name: Compile Unrestricted iOS App
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: 
+
+jobs:
+  build:
+    runs-on: macos-14 
+    
+    steps:
+    - name: Checkout Code Repository
+      uses: actions/checkout@v4
+
+    - name: Initialize Native Swift Package Manifest
+      run: |
+        mkdir -p App/Sources
+        mv *.swift App/Sources/ 2>/dev/null || true
+        
+        echo '// swift-tools-version: 5.10
+        import PackageDescription
+        let package = Package(
+            name: "ARCameraTracking",
+            platforms: [.iOS(.v15)],
+            products: [.executable(name: "ARCameraTracking", targets: ["ARCameraTracking"])],
+            targets: [.executableTarget(name: "ARCameraTracking", path: "Sources")]
+        )' > App/Package.swift
+
+    - name: Compile Application Binary Executable
+      run: |
+        cd App
+        xcodebuild -scheme ARCameraTracking -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
     - name: Assemble Completed IPA Application Package
       run: |
-        # 1. Clean out any legacy folder caches and build a fresh workspace bundle container
         rm -rf Payload/
         mkdir -p Payload/VirtualProduction.app
         
-        # 2. Dynamically scan Xcode's build paths to grab the exact native arm64 application binary executable
         BINARY_PATH=$(find /Users/runner/Library/Developer/Xcode/DerivedData/ -type f -name "ARCameraTracking" ! -name "*.json" ! -name "*.LinkFileList" | head -n 1)
         cp "$BINARY_PATH" Payload/VirtualProduction.app/VirtualProduction
         
-        # 3. Generate the absolute system configuration parameter list
         echo '<?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://apple.com">
         <plist version="1.0">
@@ -47,7 +78,6 @@
         </dict>
         </plist>' > Payload/VirtualProduction.app/Info.plist
 
-        # 4. Zip the entire compiled structural system folder into an installable application bundle format
         zip -r VirtualProduction_Unrestricted.ipa Payload/
 
     - name: Export Complete App Package Archive
