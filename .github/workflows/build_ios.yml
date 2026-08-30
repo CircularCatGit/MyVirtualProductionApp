@@ -15,21 +15,23 @@ jobs:
 
     - name: Initialize Native Swift Package Manifest
       run: |
-        # 1. Clear out any accidental duplicated folder structures to prevent duplicate class conflicts
+        # 1. Create a pristine, completely isolated source folder tree
         mkdir -p App/Sources
         
-        # 2. Safely find and move exactly one unique copy of each file into the compilation root
-        find . -maxdepth 3 -name "main.swift" -exec mv {} App/Sources/ \; 2>/dev/null || true
-        find . -maxdepth 3 -name "AppDelegate.swift" -exec mv {} App/Sources/ \; 2>/dev/null || true
-        find . -maxdepth 3 -name "ViewController.swift" -exec mv {} App/Sources/ \; 2>/dev/null || true
-        find . -maxdepth 3 -name "ModelImporter.swift" -exec mv {} App/Sources/ \; 2>/dev/null || true
-        find . -maxdepth 3 -name "DataRecorder.swift" -exec mv {} App/Sources/ \; 2>/dev/null || true
-        find . -maxdepth 3 -name "Scene.swift" -exec mv {} App/Sources/ \; 2>/dev/null || true
+        # 2. Specifically look for and copy only the latest version of our 6 core project files
+        find . -name "main.swift" -exec cp {} App/Sources/ \; 2>/dev/null || true
+        find . -name "AppDelegate.swift" -exec cp {} App/Sources/ \; 2>/dev/null || true
+        find . -name "ViewController.swift" -exec cp {} App/Sources/ \; 2>/dev/null || true
+        find . -name "ModelImporter.swift" -exec cp {} App/Sources/ \; 2>/dev/null || true
+        find . -name "DataRecorder.swift" -exec cp {} App/Sources/ \; 2>/dev/null || true
+        find . -name "Scene.swift" -exec cp {} App/Sources/ \; 2>/dev/null || true
         
-        # 3. Purge any remaining loose redundant folder trees out of memory
-        rm -rf ARCameraTrackingAndVirtualProduction/ 2>/dev/null || true
+        # 3. CRITICAL: Completely wipe the root folder clean so no floating duplicate files remain
+        mv App /tmp/AppClean
+        rm -rf *
+        mv /tmp/AppClean App
         
-        # 4. Output the pristine Swift Package Configuration file
+        # 4. Output the pristine Swift Package Configuration manifest file inside our isolated tree
         echo '// swift-tools-version: 5.10
         import PackageDescription
         let package = Package(
